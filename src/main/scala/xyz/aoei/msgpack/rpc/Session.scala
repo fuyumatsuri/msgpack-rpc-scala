@@ -11,8 +11,9 @@ import org.msgpack.jackson.dataformat.MessagePackFactory
 import rx.lang.scala.subjects.ReplaySubject
 
 case class ResponseHandler(writer: (Object) => Unit, requestId: Long) {
-  def send(resp: Object): Unit = this.send(Array(resp))
-  def send(resp: Array[Any]): Unit = writer(Request(requestId, null, resp))
+  def send(resp: Array[Any]): Unit = {
+    writer(Response(requestId, null, resp))
+  }
 }
 
 case class Window(data: Any)
@@ -95,7 +96,7 @@ class Session {
       val handler = this.pendingRequests(id)
       this.pendingRequests.remove(id)
 
-      if (err == Nil) handler.failure(new IllegalArgumentException(err.toString))
+      if (err != null) handler.failure(new IllegalArgumentException(err.toString))
       else handler.success(result)
     case Notification(_, method, args) => this.notificationEvent.onNext(NotificationEvent(method, args))
   }

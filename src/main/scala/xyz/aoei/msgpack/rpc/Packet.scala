@@ -18,7 +18,7 @@ object Request {
 
 case class Response(packetType: Int, requestId: Long, error: Any, result: Any) extends Packet
 object Response {
-  def apply(requestId: Long, error: Any, result: Any) = new Response(PacketType.Request, requestId, error, result)
+  def apply(requestId: Long, error: Any, result: Any) = new Response(PacketType.Response, requestId, error, result)
 }
 
 case class Notification(packetType: Int, method: String, args: Array[Any]) extends Packet

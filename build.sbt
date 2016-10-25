@@ -1,12 +1,10 @@
-name := "neovim-scala"
+name := "msgpack-rpc-scala"
 
 version := "1.0"
 
 scalaVersion := "2.11.8"
 
-libraryDependencies += "com.eed3si9n" %% "treehugger" % "0.4.1"
-
-resolvers += Resolver.sonatypeRepo("public")
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test"
 
 libraryDependencies += "org.msgpack" % "jackson-dataformat-msgpack" % "0.8.11"
 libraryDependencies += "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % "2.8.3"
