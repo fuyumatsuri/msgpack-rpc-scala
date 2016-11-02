@@ -28,7 +28,10 @@ class NeovimTest extends FlatSpec with BeforeAndAfter {
     }
   }
 
-  val session = new Session(inputStream.get, outputStream.get)
+  class Window(val data: Array[Byte])
+  val windowType = new ExtendedType(classOf[Window], 1, (win: Window) => win.data, (bytes) => new Window(bytes))
+
+  val session = new Session(inputStream.get, outputStream.get, List(windowType))
 
   var requests: Array[Any] = Array()
   var notifications: Array[Any] = Array()
@@ -63,5 +66,31 @@ class NeovimTest extends FlatSpec with BeforeAndAfter {
     }
     assertResult(Array(Array("request", Array(1, 2, 3)))) { requests }
     assertResult(Array()) { notifications }
+  }
+
+  it should "receive notifications" in {
+    val f: Future[Any] = session.request("vim_eval", List("""rpcnotify(1,"notify", 1, 2, 3)"""))
+    Await.ready(f, 1 seconds).onComplete {
+      case Success(res) =>
+      case Failure(err) => fail("Received error: " + err)
+    }
+    assertResult(Array(Array("notify", Array(1, 2, 3)))) { notifications }
+  }
+
+  it should "deal with custom types" in {
+    val res = Await.result(for {
+      _ <- session.request("vim_command", List("vsp"))
+      windows <- session.request("vim_get_windows")
+      _ <- {
+        val w = windows.asInstanceOf[List[Window]]
+        assert(w.length == 2)
+        assert(w.head.isInstanceOf[Window])
+        assert(w(1).isInstanceOf[Window])
+        session.request("vim_set_current_window", List(w(1)))
+      }
+      window <- session.request("vim_get_current_window")
+    } yield (window, windows), 1 second)
+
+    res match { case (win: Window, windows: List[Window]) => assert(win.data.deep == windows(1).data.deep) }
   }
 }

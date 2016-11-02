@@ -25,7 +25,7 @@ case class ExtendedType[T <: AnyRef](typeClass: Class[T], typeId: Byte,
                                      serializer: T => Array[Byte],
                                      deserializer: Array[Byte] => T)
 
-class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: AnyRef]] = null) {
+class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: AnyRef]] = List()) {
   private val objectMapper: ObjectMapper = {
     val factory = new CustomFactory
     factory.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE)
