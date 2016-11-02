@@ -28,15 +28,14 @@ class NeovimTest extends FlatSpec with BeforeAndAfter {
     }
   }
 
-  val session = new Session
-  session.attach(inputStream.get, outputStream.get)
+  val session = new Session(inputStream.get, outputStream.get)
 
   var requests: Array[Any] = Array()
   var notifications: Array[Any] = Array()
 
   session.onRequest((method, args, resp) => {
     requests = requests :+ Array(method, args)
-    resp.send(Array("received " + method + "(" + args.toString + ")"))
+    resp.send(List("received " + method + "(" + args.toString + ")"))
   })
 
   session.onNotification((method, args) => {
@@ -49,7 +48,7 @@ class NeovimTest extends FlatSpec with BeforeAndAfter {
   }
 
   it should "send requests and receive response" in {
-    val f: Future[Any] = session.request("vim_eval", Array("""{"k1": "v1", "k2": "v2"}"""))
+    val f: Future[Any] = session.request("vim_eval", """{"k1": "v1", "k2": "v2"}""" :: Nil)
     Await.ready(f, 1 seconds).onComplete {
       case Success(res) => assert(res == Map("k1" -> "v1", "k2" -> "v2"))
       case Failure(err) => fail("Received error: " + err)
@@ -57,7 +56,7 @@ class NeovimTest extends FlatSpec with BeforeAndAfter {
   }
 
   it should "receive requests and send responses" in {
-    val f: Future[Any] = session.request("vim_eval", Array("""rpcrequest(1, "request", 1, 2, 3)"""))
+    val f: Future[Any] = session.request("vim_eval", """rpcrequest(1, "request", 1, 2, 3)""" :: Nil)
     Await.ready(f, 1 seconds).onComplete {
       case Success(res) =>
       case Failure(err) => fail("Received error: " + err)
