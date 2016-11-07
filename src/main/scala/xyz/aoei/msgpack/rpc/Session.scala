@@ -15,6 +15,7 @@ import scala.concurrent.{Future, Promise}
 // An instance of ResponseHandler is given to the user when a request is received
 // to allow the user to provide a response
 case class ResponseHandler(writer: (Object) => Unit, requestId: Long) {
+  def send(resp: Any*): Unit = send(resp.toList)
   def send(resp: List[Any]): Unit = {
     writer(Response(requestId, null, resp))
   }
@@ -79,6 +80,7 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
   def onNotification(callback: (String, List[Any]) => Unit) =
     notificationEvent.subscribe( next => callback(next.method, next.args) )
 
+  def request(method: String, args: Any*): Future[Any] = request(method, args.toList)
   def request(method: String, args: List[Any] = List()): Future[Any] = {
     val id: Long = this.nextRequestId
     this.nextRequestId += 1
@@ -91,6 +93,7 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
     p.future
   }
 
+  def notify(method: String, args: Any*): Unit = notify(method, args.toList)
   def notify(method: String, args: List[Any]): Unit = write(Notification(method, args))
 
   private def write(obj: Object): Unit = {

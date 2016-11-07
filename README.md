@@ -23,8 +23,8 @@ val session = new Session(inputStream, outputStream)
 
 session.onRequest((method, args, resp) => {
   println("received request")
-  resp.send(List("response!"))
-  session.request("remote-method", List("arg1", "arg2")).onSuccess {
+  resp.send("response!")
+  session.request("remote-method", "arg1", "arg2").onSuccess {
     case result => println("received response")
   }
 })
