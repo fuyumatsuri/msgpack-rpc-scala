@@ -86,8 +86,7 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
     implicit def defaultDefaultsTo[T]: DefaultsTo[T, T] = null
     implicit def fallback[T, D]: DefaultsTo[T, D] = null
   }
-//  def request(method: String, args: Any*): Future[Any] = request[Any](method, args.toList)
-//  def request(method: String, args: List[Any]): Future[Any] = request[Any](method, args)
+
   def request[T <: Any : ClassTag](method: String, args: Any*)(implicit default: T DefaultsTo Any): Future[T] = request[T](method, args.toList)
   def request[T <: Any : ClassTag](method: String, args: List[Any] = List())(implicit default: T DefaultsTo Any): Future[T] = {
     val ct = implicitly[ClassTag[T]]
