@@ -11,6 +11,7 @@ import xyz.aoei.msgpack.rpc.jackson.{CustomFactory, CustomSerializer}
 
 import scala.collection.mutable
 import scala.concurrent.{Future, Promise}
+import scala.reflect.ClassTag
 
 // An instance of ResponseHandler is given to the user when a request is received
 // to allow the user to provide a response
@@ -48,7 +49,7 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
   }
 
   private var nextRequestId: Long = 1
-  private var pendingRequests = mutable.HashMap.empty[Long, Promise[Any]]
+  private var pendingRequests = mutable.HashMap.empty[Long, (ClassTag[_], Promise[Any])]
 
   private case class RequestEvent(method: String, args: List[Any], resp: ResponseHandler)
   private val requestEvent = ReplaySubject[RequestEvent]
@@ -80,13 +81,23 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
   def onNotification(callback: (String, List[Any]) => Unit) =
     notificationEvent.subscribe( next => callback(next.method, next.args) )
 
-  def request(method: String, args: Any*): Future[Any] = request(method, args.toList)
-  def request(method: String, args: List[Any] = List()): Future[Any] = {
+  trait DefaultsTo[Type, Default]
+  object DefaultsTo {
+    implicit def defaultDefaultsTo[T]: DefaultsTo[T, T] = null
+    implicit def fallback[T, D]: DefaultsTo[T, D] = null
+  }
+//  def request(method: String, args: Any*): Future[Any] = request[Any](method, args.toList)
+//  def request(method: String, args: List[Any]): Future[Any] = request[Any](method, args)
+  def request[T <: Any : ClassTag](method: String, args: Any*)(implicit default: T DefaultsTo Any): Future[T] = request[T](method, args.toList)
+  def request[T <: Any : ClassTag](method: String, args: List[Any] = List())(implicit default: T DefaultsTo Any): Future[T] = {
+    val ct = implicitly[ClassTag[T]]
+
     val id: Long = this.nextRequestId
     this.nextRequestId += 1
 
-    val p = Promise[Any]
-    this.pendingRequests += (id -> p)
+    val p = Promise[T]
+
+    this.pendingRequests += (id -> (ct, p.asInstanceOf[Promise[Any]]))
 
     write(Request(id, method, args))
 
@@ -106,11 +117,15 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
       this.requestEvent.onNext(RequestEvent(method, args, ResponseHandler(this.write, id)))
 
     case Response(_, id, err, result) =>
-      val handler = this.pendingRequests(id)
+      this.pendingRequests(id) match { case (tag, handler) =>
+        if (err != null) handler.failure(new IllegalArgumentException(err.toString))
+        else result match {
+          case null => handler.success(null)
+          case tag(x) => handler.success(x)
+          case _ => handler.failure(new IllegalArgumentException("result type " + result.getClass + " is not expected type " + tag.runtimeClass))
+        }
+      }
       this.pendingRequests.remove(id)
-
-      if (err != null) handler.failure(new IllegalArgumentException(err.toString))
-      else handler.success(result)
 
     case Notification(_, method, args) =>
       this.notificationEvent.onNext(NotificationEvent(method, args))

@@ -47,3 +47,9 @@ val exType = new ExtendedType(classOf[ExType], typeId, encoder, decoder)
 
 val session = new Session(inputStream, outputStream, List(exType))
 ```
+
+Requests by default return a `Future[Any]`. If you know what type the request should return
+you may specify it to get a `Future` of that type:
+```scala
+session.request[ExType]("remote-method") // returns Future[ExType]
+```

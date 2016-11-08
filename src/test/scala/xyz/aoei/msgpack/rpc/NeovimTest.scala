@@ -9,7 +9,6 @@ import scala.sys.process._
 import scala.concurrent.{Await, Future, SyncVar}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
 
 class NeovimTest extends FlatSpec with BeforeAndAfter with ScalaFutures {
   val inputStream = new SyncVar[InputStream]
@@ -23,11 +22,10 @@ class NeovimTest extends FlatSpec with BeforeAndAfter with ScalaFutures {
       _ => ())
     pb.run(pio)
   } catch {
-    case e: Exception => {
+    case e: Exception =>
       println("A Neovim installation is required to run the tests")
       println("(see https://github.com/neovim/neovim/wiki/Installing)")
       System.exit(1)
-    }
   }
 
   class Window(val data: Array[Byte])
@@ -74,21 +72,25 @@ class NeovimTest extends FlatSpec with BeforeAndAfter with ScalaFutures {
     }
   }
 
-  it should "deal with custom types" in {
-    val res = Await.result(for {
-      _ <- session.request("vim_command", "vsp")
-      windows <- session.request("vim_get_windows")
-      _ <- {
-        val w = windows.asInstanceOf[List[Window]]
-        assert(w.length == 2)
-        assert(w.head.isInstanceOf[Window])
-        assert(w(1).isInstanceOf[Window])
-        session.request("vim_set_current_window", w(1))
-      }
-      window <- session.request("vim_get_current_window")
-    } yield (window, windows), 1 second)
+  it should "allow specification of expected request result type" in {
+    val f: Future[Window] = session.request[Window]("vim_get_current_window")
+    ScalaFutures.whenReady(f) { res =>
+      assert(res.isInstanceOf[Window])
+    }
+  }
 
-    res match { case (win: Window, windows: List[Window]) => assert(win.data.deep == windows(1).data.deep) }
+  it should "deal with custom types" in {
+    Await.result(for {
+      _ <- session.request("vim_command", "vsp")
+      windows <- session.request[List[Window]]("vim_get_windows")
+      _ <- {
+        assert(windows.length == 2)
+        assert(windows.head.isInstanceOf[Window])
+        assert(windows(1).isInstanceOf[Window])
+        session.request("vim_set_current_window", windows(1))
+      }
+      window <- session.request[Window]("vim_get_current_window")
+    } yield assert(window.data.deep == windows(1).data.deep), 1 second)
   }
 
   it should "handle variable argument parameters" in {
