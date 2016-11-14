@@ -60,17 +60,21 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
   // Create a thread to listen for any packets
   new Thread(new Runnable {
     override def run(): Unit = {
-      while (true) {
-        val tree = objectMapper.readTree(in)
+      try {
+        while (true) {
+          val tree = objectMapper.readTree(in)
 
-        val packet: Packet = tree.get(0).asInt match {
-          case 0 => objectMapper.treeToValue(tree, classOf[Request])
-          case 1 => objectMapper.treeToValue(tree, classOf[Response])
-          case 2 => objectMapper.treeToValue(tree, classOf[Notification])
-          case x => throw new IllegalArgumentException("Invalid Packet Type: " + x)
+          val packet: Packet = tree.get(0).asInt match {
+            case 0 => objectMapper.treeToValue(tree, classOf[Request])
+            case 1 => objectMapper.treeToValue(tree, classOf[Response])
+            case 2 => objectMapper.treeToValue(tree, classOf[Notification])
+            case x => throw new IllegalArgumentException("Invalid Packet Type: " + x)
+          }
+
+          parseMessage(packet)
         }
-
-        parseMessage(packet)
+      } catch {
+        case e: JsonMappingException => // end-of-input
       }
     }
   }).start()
