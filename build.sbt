@@ -2,7 +2,7 @@ name := "msgpack-rpc-scala"
 
 organization := "xyz.aoei"
 
-version := "1.1"
+version := "1.2"
 
 scalaVersion := "2.11.8"
 
