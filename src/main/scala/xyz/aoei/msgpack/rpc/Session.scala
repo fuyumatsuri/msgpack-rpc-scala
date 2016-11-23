@@ -95,14 +95,15 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
   def request[T <: Any : ClassTag](method: String, args: List[Any] = List())(implicit default: T DefaultsTo Any): Future[T] = {
     val ct = implicitly[ClassTag[T]]
 
-    val id: Long = this.nextRequestId
-    this.nextRequestId += 1
-
     val p = Promise[T]
 
-    this.pendingRequests += (id -> (ct, p.asInstanceOf[Promise[Any]]))
+    synchronized {
+      val id: Long = this.nextRequestId
+      this.nextRequestId += 1
 
-    write(Request(id, method, args))
+      this.pendingRequests += (id -> (ct, p.asInstanceOf[Promise[Any]]))
+      write(Request(id, method, args))
+    }
 
     p.future
   }
@@ -120,15 +121,18 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
       this.requestEvent.onNext(RequestEvent(method, args, ResponseHandler(this.write, id)))
 
     case Response(_, id, err, result) =>
-      this.pendingRequests(id) match { case (tag, handler) =>
-        if (err != null) handler.failure(new IllegalArgumentException(err.toString))
-        else result match {
-          case null => handler.success(null)
-          case tag(x) => handler.success(x)
-          case _ => handler.failure(new IllegalArgumentException("result type " + result.getClass + " is not expected type " + tag.runtimeClass))
+      synchronized {
+        this.pendingRequests(id) match {
+          case (tag, handler) =>
+            if (err != null) handler.failure(new IllegalArgumentException(err.toString))
+            else result match {
+              case null => handler.success(null)
+              case tag(x) => handler.success(x)
+              case _ => handler.failure(new IllegalArgumentException("result type " + result.getClass + " is not expected type " + tag.runtimeClass))
+            }
         }
+        this.pendingRequests.remove(id)
       }
-      this.pendingRequests.remove(id)
 
     case Notification(_, method, args) =>
       this.notificationEvent.onNext(NotificationEvent(method, args))
