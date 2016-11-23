@@ -2,12 +2,8 @@ package xyz.aoei.msgpack.rpc
 
 import java.io.{InputStream, OutputStream}
 
-import com.fasterxml.jackson.core.{JsonGenerator, JsonParser}
-import com.fasterxml.jackson.databind._
-import com.fasterxml.jackson.databind.module.SimpleModule
-import com.fasterxml.jackson.module.scala.DefaultScalaModule
+import com.fasterxml.jackson.databind.JsonMappingException
 import rx.lang.scala.subjects.ReplaySubject
-import xyz.aoei.msgpack.rpc.jackson.{CustomFactory, CustomSerializer}
 
 import scala.collection.mutable
 import scala.concurrent.{Future, Promise}
@@ -28,25 +24,7 @@ case class ExtendedType[T <: AnyRef](typeClass: Class[T], typeId: Byte,
                                      deserializer: Array[Byte] => T)
 
 class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: AnyRef]] = List()) {
-  private val objectMapper: ObjectMapper = {
-    val factory = new CustomFactory
-    factory.disable(JsonParser.Feature.AUTO_CLOSE_SOURCE)
-    factory.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)
-
-    // Register any extension types
-    val mod = new SimpleModule
-    types.map { t =>
-      // Allow the MessagePackFactory to parse the type
-      factory.register(t.typeId, t.deserializer)
-      // Allow Jackson to serialize the type
-      mod.addSerializer(t.typeClass, new CustomSerializer(t.typeId, t.serializer).asInstanceOf[JsonSerializer[Object]])
-    }
-
-    val objectMapper = new ObjectMapper(factory)
-    objectMapper.registerModule(DefaultScalaModule)
-    objectMapper.registerModule(mod)
-    objectMapper
-  }
+  private val msgpack = new Msgpack(types)
 
   private var nextRequestId: Long = 1
   private var pendingRequests = mutable.HashMap.empty[Long, (ClassTag[_], Promise[Any])]
@@ -62,15 +40,7 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
     override def run(): Unit = {
       try {
         while (true) {
-          val tree = objectMapper.readTree(in)
-
-          val packet: Packet = tree.get(0).asInt match {
-            case 0 => objectMapper.treeToValue(tree, classOf[Request])
-            case 1 => objectMapper.treeToValue(tree, classOf[Response])
-            case 2 => objectMapper.treeToValue(tree, classOf[Notification])
-            case x => throw new IllegalArgumentException("Invalid Packet Type: " + x)
-          }
-
+          val packet = msgpack.readPacket(in)
           parseMessage(packet)
         }
       } catch {
@@ -112,8 +82,7 @@ class Session(in: InputStream, out: OutputStream, types: List[ExtendedType[_ <: 
   def notify(method: String, args: List[Any]): Unit = write(Notification(method, args))
 
   private def write(obj: Object): Unit = {
-    objectMapper.writeValue(out, obj)
-    out.flush()
+    msgpack.write(obj, out)
   }
 
   private def parseMessage(packet: Packet) = packet match {

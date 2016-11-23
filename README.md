@@ -6,7 +6,7 @@ See the [specification](https://github.com/msgpack-rpc/msgpack-rpc/blob/master/s
 ## SBT
 Add dependency:
 
-    libraryDependencies += "xyz.aoei" %% "msgpack-rpc-scala" % "1.2"
+    libraryDependencies += "xyz.aoei" %% "msgpack-rpc-scala" % "1.3"
 
 ## Usage
 This package exports a single class which represents a msgpack-rpc session. A
